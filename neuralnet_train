@@ -1,0 +1,43 @@
+# This R script trains a neural network for a digit recognizer
+# kaggle digit recognizer
+# It uses the library "neuralnet"
+
+library(neuralnet)
+
+# Step 1-1: load the train data and split into 60% train, 20% cross-validation, and 20% test
+train_data = read.csv('train.csv')
+train_index = sample(1:nrow(train_data), round(0.6*nrow(train_data))
+train = train_data[train_index,]
+remain = train_data[-train_index,]
+cv_index = sample(1:nrow(remain), round(0.5*nrow(remain)))
+cv = remain[cv_index,]
+test = remain[-cv_index,]
+
+# Step 1-2: for the training data, convert the digit labels into vectors
+identity_10 = diag(x = 1, 10, 10)
+label = train[,1]
+label = ifelse(label == 0, 10, label)
+label_vector = data.frame(identity_10[label,])
+train_vectorized = cbind(label_vector, train[,2:785])
+
+# Step 1-3: construct the formula for the neuralnet command
+x = paste(names(train_vectorized[1:10]),collapse = '+')
+y = paste(names(train_vectorized[11:794]), collapse = '+')
+f = as.formula(paste(x,'~',y))
+
+# Step 2: train the neural network and examine the result using the cross-validation dataset
+# this step is manually repeated to adjust the hidden layer setup
+
+hidden_node = 90
+result = neuralnet(f, data=train_vectorized, hidden=hidden_node, err.fct='sse', act.fct='logistic', linear.output=FALSE)
+
+model_prediction_vector = compute(result,cv[,2:785])
+model_prediction = max.col(model_prediction_vector$net.result)
+comparison = sum(model_prediction == cv[,1])/length(model_prediction)
+print(comparison)
+
+# Step 3: test the model using the test dataset
+model_prediction_vector = compute(result,test[,2:785])
+model_prediction = max.col(model_prediction_vector$net.result)
+comparison = sum(model_prediction == test[,1])/length(model_prediction)
+print(comparison)
