@@ -1,0 +1,118 @@
+rm(list=ls())
+
+sigmoid = function(z) {
+  g = 1 / (1 + exp(-z))
+  return(g)
+}
+
+sigmoidGradient = function(z) {
+  g = sigmoid(z)
+  g = g * (1-g)
+  return(g)
+}
+
+randinit = function(row_n, col_n) {
+  epsilon_init = (6 / (row_n + col_n)) ** 0.5
+  w = matrix((runif(row_n * col_n, 0, 1) * 2* epsilon_init - epsilon_init),
+             nrow = row_n, ncol = col_n)
+  return(w)
+}
+
+costfunction = function(theta1, theta2, X, y, m, lambda) {
+  identity_10 = diag(x = 1, 10, 10)
+  label = ifelse(y == 0, 10, y)
+  y_vector = identity_10[label,]
+  
+  a1 = as.matrix(cbind(rep(1, m), X))
+  z2 = a1 %*% theta1
+  a2 = sigmoid(z2)
+  a2 = as.matrix(cbind(rep(1, m), a2))
+  z3 = a2 %*% theta2
+  a3 = sigmoid(z3)
+  
+  J = sum((-y_vector) * log(a3) - (1-y_vector) * log(1-a3)) / m +
+      (sum(theta1[,-1] ** 2) + sum(theta2[,-1] ** 2)) * lambda / 2/ m
+  
+  delta3 = a3 - y_vector
+  delta2 = delta3 %*% t(theta2)
+  delta2 = delta2[,-1]
+  delta2 = delta2 * sigmoidGradient(z2)
+  
+  Delta2 = t(a2) %*% delta3
+  Delta1 = t(a1) %*% delta2
+  
+  theta1_grad = Delta1 / m + theta1 * lambda / m
+  theta2_grad = Delta2 / m + theta2 * lambda / m
+  theta1_grad[,1] = theta1_grad[,1] - theta1[,1] * lambda / m
+  theta2_grad[,1] = theta2_grad[,1] - theta2[,1] * lambda / m
+  
+  return(c(J, theta1_grad, theta2_grad))
+}
+
+prediction = function(theta1, theta2, X, m) {
+  a1 = as.matrix(cbind(rep(1, m), X))
+  z2 = a1 %*% theta1
+  a2 = sigmoid(z2)
+  a2 = as.matrix(cbind(rep(1, m), a2))
+  z3 = a2 %*% theta2
+  a3 = sigmoid(z3)
+  result = max.col(a3)
+  result = ifelse(result == 10, 0, result)
+  return(result)
+}
+
+input_layer_size = 28 * 28
+label_size = 10
+
+total_data = read.csv('train.csv')
+total_obs = nrow(total_data)
+train_index = sample(1:total_obs, round(0.8*total_obs))
+train = total_data[train_index,]
+cv = total_data[-train_index,]
+
+hidden_layer_size = 600
+lambda = 0
+alpha = 0.0001
+m = 5
+batch_n = 0.8 * total_obs / m
+
+J = 0
+#J_series = vector(mode = "double", length = 0)
+#theta1 = randinit(row_n = input_layer_size + 1, col_n = hidden_layer_size)
+#theta2 = randinit(row_n = hidden_layer_size + 1, col_n = label_size)
+J_series = read.csv('J.csv')
+J_series = as.vector(J_series$x)
+theta1 = as.matrix(read.csv('theta1.csv'))
+theta2 = as.matrix(read.csv('theta2.csv'))
+
+for (i in 1:batch_n) {
+
+  data = train[((i-1)*m+1):(i*m),]
+  y = data[,1]
+  X = data[,-1]
+  
+  result = costfunction(theta1, theta2, X, y, m, lambda)
+  
+  J = J + result[1] * m
+  theta1_grad = matrix(result[2:((input_layer_size + 1) * hidden_layer_size + 1)],
+                       nrow = input_layer_size + 1, ncol = hidden_layer_size)
+  theta2_grad = matrix(result[((input_layer_size + 1) * hidden_layer_size + 2):length(result)],
+                       nrow = hidden_layer_size + 1, ncol = label_size)
+  
+  theta1 = theta1 - alpha * theta1_grad
+  theta2 = theta2 - alpha * theta2_grad
+
+  if ((i * m) %% 1000 == 0) {
+    J_series = c(J_series, (J/1000))
+    J = 0
+    plot(J_series)
+  }
+}
+
+write.csv(J_series,'J.csv')
+write.csv(theta1,'theta1.csv',row.names = FALSE)
+write.csv(theta2,'theta2.csv',row.names = FALSE)
+
+cv_prediction = prediction(theta1, theta2, cv[,-1], nrow(cv))
+cv_correct = sum(cv_prediction == cv[,1]) / nrow(cv)
+print(cv_correct)
